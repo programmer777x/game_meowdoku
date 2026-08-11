@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meowdoku</title>
+<style>
+  :root {
+    --bg-a: #fff1e6;
+    --bg-b: #ffe0ec;
+    --ink: #4a3b3b;
+    --card: #ffffff;
+    --shadow: rgba(180, 120, 130, 0.25);
+    --accent: #ff8fab;
+    --accent-dark: #e8688f;
+    --heart-empty: #e8d6d6;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: radial-gradient(ellipse at top, var(--bg-a), var(--bg-b));
+    color: var(--ink);
+    padding: 24px 16px 40px;
+  }
+
+  h1 {
+    margin: 4px 0 0;
+    font-size: 26px;
+    letter-spacing: 0.02em;
+  }
+  .subtitle {
+    margin: 0 0 4px;
+    font-size: 13px;
+    opacity: 0.65;
+  }
+
+  .top-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .selector-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .pill-select {
+    display: flex;
+    gap: 6px;
+    background: var(--card);
+    padding: 4px;
+    border-radius: 999px;
+    box-shadow: 0 4px 12px var(--shadow);
+  }
+  .pill-select button {
+    border: none;
+    background: transparent;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--ink);
+    opacity: 0.55;
+  }
+  .pill-select button.active {
+    background: var(--accent);
+    color: white;
+    opacity: 1;
+  }
+  .pill-select.difficulty button.active[data-diff="EASY"] { background: #6fcf97; }
+  .pill-select.difficulty button.active[data-diff="MEDIUM"] { background: #f2c94c; color: #4a3b3b; }
+  .pill-select.difficulty button.active[data-diff="HARD"] { background: #eb5757; }
+
+  .lives {
+    display: flex;
+    gap: 3px;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 10px;
+    transition: background 0.15s ease;
+  }
+  .lives:hover { background: rgba(255,255,255,0.6); }
+  .life.lost { opacity: 0.25; filter: grayscale(1); }
+
+  .icon-hint {
+    font-size: 10px;
+    opacity: 0.5;
+    text-align: center;
+    margin-top: -4px;
+  }
+
+  .board-wrap {
+    background: var(--card);
+    padding: 14px;
+    border-radius: 20px;
+    box-shadow: 0 14px 34px var(--shadow);
+    position: relative;
+  }
+
+  .board-grid-area {
+    display: grid;
+    grid-template-columns: 20px auto;
+    grid-template-rows: 20px auto;
+  }
+
+  .col-labels, .row-labels {
+    display: grid;
+    gap: 3px;
+  }
+  .col-labels {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .row-labels {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .col-labels div, .row-labels div {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    opacity: 0.45;
+    font-weight: 700;
+  }
+  .col-labels div { height: 20px; width: 52px; }
+  .row-labels div { width: 20px; height: 52px; }
+
+  .board {
+    grid-column: 2;
+    grid-row: 2;
+    display: grid;
+    gap: 3px;
+  }
+
+  .cell.hint-glow {
+    animation: hintPulse 0.9s ease-in-out infinite;
+    box-shadow: 0 0 0 3px #ffd23f, 0 0 16px 4px rgba(255, 210, 63, 0.7);
+  }
+  @keyframes hintPulse {
+    0%, 100% { box-shadow: 0 0 0 3px #ffd23f, 0 0 10px 2px rgba(255, 210, 63, 0.5); }
+    50% { box-shadow: 0 0 0 3px #ffd23f, 0 0 22px 8px rgba(255, 210, 63, 0.85); }
+  }
+
+  .cell {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    cursor: pointer;
+    border-radius: 6px;
+    user-select: none;
+    transition: transform 0.1s ease;
+    position: relative;
+  }
+  .cell:active { transform: scale(0.94); }
+
+  .cell.shake {
+    animation: shake 0.35s ease;
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+  .mark-x {
+    font-size: 18px;
+    opacity: 0.4;
+    font-weight: 700;
+  }
+
+  .status-line {
+    font-size: 14px;
+    min-height: 20px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .status-line.win { color: #2f9e5b; }
+  .status-line.lose { color: #d4536b; }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+  }
+  .controls button {
+    border: none;
+    background: var(--accent);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 10px var(--shadow);
+  }
+  .controls button.secondary {
+    background: white;
+    color: var(--ink);
+    border: 1px solid #eeddde;
+  }
+  .controls button:hover { filter: brightness(1.05); }
+  .controls button:disabled { opacity: 0.5; cursor: default; filter: none; }
+
+  .rules {
+    max-width: 400px;
+    font-size: 12px;
+    text-align: center;
+    opacity: 0.65;
+    line-height: 1.5;
+  }
+
+  .win-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.92);
+    border-radius: 20px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 20px;
+    font-weight: 700;
+    color: #2f9e5b;
+  }
+  .win-overlay.show { display: flex; }
+</style>
+</head>
+<body>
+
+  <h1>🐾 Meowdoku</h1>
+  <p class="subtitle">One cat per row, column &amp; color — no two cats touching (even diagonally)</p>
+
+  <div class="top-bar">
+    <div class="selector-row">
+      <div class="pill-select" id="sizeSelect">
+        <button data-size="5">5×5</button>
+        <button data-size="6" class="active">6×6</button>
+        <button data-size="7">7×7</button>
+        <button data-size="8">8×8</button>
+      </div>
+      <div class="pill-select difficulty" id="diffSelect">
+        <button data-diff="EASY">Easy</button>
+        <button data-diff="MEDIUM" class="active">Medium</button>
+        <button data-diff="HARD">Hard</button>
+      </div>
+    </div>
+    <div class="selector-row">
+      <div class="lives" id="lives" title="Tap to switch between heart and cat icons"></div>
+    </div>
+    <div class="icon-hint">tap the lives to switch icon style</div>
+  </div>
+
+  <div class="board-wrap">
+    <div class="board-grid-area">
+      <div class="col-labels" id="colLabels"></div>
+      <div class="row-labels" id="rowLabels"></div>
+      <div class="board" id="board"></div>
+    </div>
+    <div class="win-overlay" id="winOverlay">
+      <div>🎉 Solved!</div>
+    </div>
+  </div>
+
+  <div class="status-line" id="statusLine"></div>
+
+  <div class="controls">
+    <button id="newPuzzleBtn">🔀 New Puzzle</button>
+    <button class="secondary" id="resetBtn">↺ Reset Board</button>
+    <button class="secondary" id="hintBtn">💡 Hint</button>
+  </div>
+
+  <div class="rules">
+    Tap a cell to cycle: empty → note (✕) → cat (🐱) → empty. Right-click instantly clears a note or cat. Placing a cat that breaks a rule costs a life, shows exactly why, and bounces back. Use Hint to glow one unsolved cat's cell. Fill the board with zero conflicts to win!
+  </div>
+
+<script>
+// ============ PUZZLE GENERATION ============
+
+function randInt(max) { return Math.floor(Math.random() * max); }
+
+function generateSolution(n, tries = 3000) {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    const colsUsed = new Set();
+    const placed = [];
+
+    function conflicts(r, c) {
+      if (colsUsed.has(c)) return true;
+      for (const [pr, pc] of placed) {
+        if (Math.abs(pr - r) <= 1 && Math.abs(pc - c) <= 1) return true;
+      }
+      return false;
+    }
+
+    function backtrack(r) {
+      if (r === n) return true;
+      const candidates = [...Array(n).keys()];
+      for (let i = candidates.length - 1; i > 0; i--) {
+        const j = randInt(i + 1);
+        [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+      }
+      for (const c of candidates) {
+        if (!conflicts(r, c)) {
+          placed.push([r, c]);
+          colsUsed.add(c);
+          if (backtrack(r + 1)) return true;
+          placed.pop();
+          colsUsed.delete(c);
+        }
+      }
+      return false;
+    }
+
+    if (backtrack(0)) return placed;
+  }
+  throw new Error("Failed to generate solution");
+}
+
+function growRegions(n, solutionCells) {
+  const grid = Array.from({ length: n }, () => Array(n).fill(-1));
+  let frontier = [];
+
+  function addNeighbors(idx, r, c) {
+    const deltas = [[-1,0],[1,0],[0,-1],[0,1]];
+    for (const [dr, dc] of deltas) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] === -1) {
+        frontier.push([idx, nr, nc]);
+      }
+    }
+  }
+
+  solutionCells.forEach(([r, c], idx) => {
+    grid[r][c] = idx;
+    addNeighbors(idx, r, c);
+  });
+
+  let unassigned = n * n - solutionCells.length;
+
+  while (unassigned > 0) {
+    if (frontier.length === 0) {
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          if (grid[r][c] === -1) {
+            const deltas = [[-1,0],[1,0],[0,-1],[0,1]];
+            for (const [dr, dc] of deltas) {
+              const nr = r + dr, nc = c + dc;
+              if (nr >= 0 && nr < n && nc >= 0 && nc < n && grid[nr][nc] !== -1) {
+                grid[r][c] = grid[nr][nc];
+                addNeighbors(grid[nr][nc], r, c);
+                unassigned--;
+                break;
+              }
+            }
+          }
+        }
+      }
+      continue;
+    }
+    const pick = randInt(frontier.length);
+    const [idx, r, c] = frontier[pick];
+    frontier.splice(pick, 1);
+    if (grid[r][c] !== -1) continue;
+    grid[r][c] = idx;
+    unassigned--;
+    addNeighbors(idx, r, c);
+  }
+
+  return grid;
+}
+
+function countSolutions(n, regionGrid, limit = 2) {
+  const colsUsed = new Set();
+  const regionsUsed = new Set();
+  const placed = [];
+  let count = 0;
+
+  function backtrack(r) {
+    if (count >= limit) return;
+    if (r === n) { count++; return; }
+    for (let c = 0; c < n; c++) {
+      if (count >= limit) return;
+      if (colsUsed.has(c)) continue;
+      const reg = regionGrid[r][c];
+      if (regionsUsed.has(reg)) continue;
+      let touching = false;
+      for (const [pr, pc] of placed) {
+        if (Math.abs(pr - r) <= 1 && Math.abs(pc - c) <= 1) { touching = true; break; }
+      }
+      if (touching) continue;
+      placed.push([r, c]);
+      colsUsed.add(c);
+      regionsUsed.add(reg);
+      backtrack(r + 1);
+      placed.pop();
+      colsUsed.delete(c);
+      regionsUsed.delete(reg);
+    }
+  }
+  backtrack(0);
+  return count;
+}
+
+// ============ DIFFICULTY CLASSIFICATION (logic-only solver) ============
+// Solves using only human-style deduction (no guessing):
+//   (a/b/c) naked/hidden singles for rows, columns, regions
+//   (d) region-confined-to-row/column -> eliminate other regions' candidates there
+// EASY = singles alone solve it. MEDIUM = needed confinement too, still no
+// guessing. HARD = logic alone can't finish -- a real guess would be needed.
+
+function classifyDifficulty(n, regionGrid) {
+  const candidate = Array.from({ length: n }, () => Array(n).fill(true));
+  const rowDone = new Set(), colDone = new Set(), regionDone = new Set();
+  const cats = [];
+  let usedConfinement = false;
+
+  const regionCells = {};
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const reg = regionGrid[r][c];
+      if (!regionCells[reg]) regionCells[reg] = [];
+      regionCells[reg].push([r, c]);
+    }
+  }
+
+  function eliminateAround(r, c) {
+    for (let rr = 0; rr < n; rr++) {
+      for (let cc = 0; cc < n; cc++) {
+        if (rr === r && cc === c) continue;
+        if (rr === r || cc === c || regionGrid[rr][cc] === regionGrid[r][c] ||
+            (Math.abs(rr - r) <= 1 && Math.abs(cc - c) <= 1)) {
+          candidate[rr][cc] = false;
+        }
+      }
+    }
+  }
+
+  function place(r, c) {
+    cats.push([r, c]);
+    rowDone.add(r);
+    colDone.add(c);
+    regionDone.add(regionGrid[r][c]);
+    eliminateAround(r, c);
+  }
+
+  let progress = true;
+  while (progress) {
+    progress = false;
+
+    // (a) row singles
+    for (let r = 0; r < n; r++) {
+      if (rowDone.has(r)) continue;
+      const opts = [];
+      for (let c = 0; c < n; c++) {
+        if (candidate[r][c] && !colDone.has(c) && !regionDone.has(regionGrid[r][c])) opts.push(c);
+      }
+      if (opts.length === 1) { place(r, opts[0]); progress = true; }
+    }
+    if (progress) continue;
+
+    // (b) column singles
+    for (let c = 0; c < n; c++) {
+      if (colDone.has(c)) continue;
+      const opts = [];
+      for (let r = 0; r < n; r++) {
+        if (candidate[r][c] && !rowDone.has(r) && !regionDone.has(regionGrid[r][c])) opts.push(r);
+      }
+      if (opts.length === 1) { place(opts[0], c); progress = true; }
+    }
+    if (progress) continue;
+
+    // (c) region singles
+    for (const reg in regionCells) {
+      if (regionDone.has(Number(reg))) continue;
+      const opts = regionCells[reg].filter(([r, c]) => candidate[r][c] && !rowDone.has(r) && !colDone.has(c));
+      if (opts.length === 1) { place(opts[0][0], opts[0][1]); progress = true; }
+    }
+    if (progress) continue;
+
+    // (d) region confined to one row/column -> eliminate other regions there
+    for (const reg in regionCells) {
+      const regNum = Number(reg);
+      if (regionDone.has(regNum)) continue;
+      const opts = regionCells[reg].filter(([r, c]) => candidate[r][c] && !rowDone.has(r) && !colDone.has(c));
+      if (opts.length === 0) continue;
+      const rows = new Set(opts.map(([r, c]) => r));
+      const cols = new Set(opts.map(([r, c]) => c));
+      if (rows.size === 1) {
+        const r0 = [...rows][0];
+        for (let c = 0; c < n; c++) {
+          if (candidate[r0][c] && regionGrid[r0][c] !== regNum) {
+            candidate[r0][c] = false;
+            usedConfinement = true;
+            progress = true;
+          }
+        }
+      }
+      if (cols.size === 1) {
+        const c0 = [...cols][0];
+        for (let r = 0; r < n; r++) {
+          if (candidate[r][c0] && regionGrid[r][c0] !== regNum) {
+            candidate[r][c0] = false;
+            usedConfinement = true;
+            progress = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (cats.length < n) return "HARD";
+  return usedConfinement ? "MEDIUM" : "EASY";
+}
+
+function generatePuzzleWithDifficulty(n, targetDifficulty, maxAttempts = 4000) {
+  let fallback = null;
+  for (let i = 0; i < maxAttempts; i++) {
+    const solution = generateSolution(n);
+    const regionGrid = growRegions(n, solution);
+    if (countSolutions(n, regionGrid, 2) !== 1) continue;
+    const diff = classifyDifficulty(n, regionGrid);
+    if (!fallback) fallback = { regionGrid, solution, diff };
+    if (diff === targetDifficulty) return { regionGrid, solution, diff, fellBack: false };
+  }
+  return { ...fallback, fellBack: true };
+}
+
+// ============ GAME STATE / UI ============
+
+const REGION_COLORS = [
+  "#ffc4d6", "#c4e5ff", "#d7f5c0", "#fff0b3",
+  "#e3caff", "#ffd9b3", "#b3fff0", "#f5c0d9"
+];
+
+let n = 6;
+let difficulty = "MEDIUM";
+let regionGrid = [];
+let solutionCells = [];
+let cellState = [];
+let livesTotal = 3;
+let lives = 3;
+let livesIcon = "heart"; // "heart" | "cat" | "fish" -- cycles in that order
+let gameOver = false;
+let won = false;
+let hintCell = null;
+
+const boardEl = document.getElementById('board');
+const livesEl = document.getElementById('lives');
+const statusEl = document.getElementById('statusLine');
+const winOverlay = document.getElementById('winOverlay');
+const newPuzzleBtn = document.getElementById('newPuzzleBtn');
+
+function buildPuzzle() {
+  newPuzzleBtn.disabled = true;
+  newPuzzleBtn.textContent = "Generating…";
+
+  // Runs synchronously (fast enough at these sizes, all measured under ~0.5s),
+  // but yield to the browser first so the "Generating…" label actually paints.
+  setTimeout(() => {
+    const { regionGrid: rg, solution, diff, fellBack } = generatePuzzleWithDifficulty(n, difficulty);
+    regionGrid = rg;
+    solutionCells = solution;
+    cellState = Array.from({ length: n }, () => Array(n).fill(0));
+    lives = livesTotal;
+    gameOver = false;
+    won = false;
+    hintCell = null;
+    winOverlay.classList.remove('show');
+    renderLives();
+    renderLabels();
+    renderBoard();
+
+    if (fellBack) {
+      statusEl.textContent = `Closest match found: ${diff} (couldn't reach ${difficulty} for this board in time).`;
+      statusEl.className = "status-line";
+    } else {
+      statusEl.textContent = "";
+      statusEl.className = "status-line";
+    }
+
+    newPuzzleBtn.disabled = false;
+    newPuzzleBtn.textContent = "🔀 New Puzzle";
+  }, 10);
+}
+
+function resetBoard() {
+  cellState = Array.from({ length: n }, () => Array(n).fill(0));
+  lives = livesTotal;
+  gameOver = false;
+  won = false;
+  hintCell = null;
+  statusEl.textContent = "";
+  statusEl.className = "status-line";
+  winOverlay.classList.remove('show');
+  renderLives();
+  renderBoard();
+}
+
+function renderLives() {
+  livesEl.innerHTML = "";
+  const ICONS = { heart: "❤️", cat: "😺", fish: "🐟" };
+  const icon = ICONS[livesIcon];
+  for (let i = 0; i < livesTotal; i++) {
+    const span = document.createElement('span');
+    span.className = "life" + (i >= lives ? " lost" : "");
+    span.textContent = icon;
+    livesEl.appendChild(span);
+  }
+}
+
+function toggleLivesIcon() {
+  const order = ["heart", "cat", "fish"];
+  const next = order[(order.indexOf(livesIcon) + 1) % order.length];
+  livesIcon = next;
+  renderLives();
+}
+
+function checkCatPlacement(r, c) {
+  for (let rr = 0; rr < n; rr++) {
+    for (let cc = 0; cc < n; cc++) {
+      if (rr === r && cc === c) continue;
+      if (cellState[rr][cc] !== 2) continue;
+      if (rr === r) return { valid: false, reason: "row", conflictCell: [rr, cc] };
+      if (cc === c) return { valid: false, reason: "column", conflictCell: [rr, cc] };
+      if (regionGrid[rr][cc] === regionGrid[r][c]) return { valid: false, reason: "color", conflictCell: [rr, cc] };
+      if (Math.abs(rr - r) <= 1 && Math.abs(cc - c) <= 1) return { valid: false, reason: "touching", conflictCell: [rr, cc] };
+    }
+  }
+  return { valid: true };
+}
+
+function checkWin() {
+  let catCount = 0;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (cellState[r][c] === 2) catCount++;
+  return catCount === n;
+}
+
+function renderLabels() {
+  const colLabels = document.getElementById('colLabels');
+  const rowLabels = document.getElementById('rowLabels');
+  colLabels.style.gridTemplateColumns = `repeat(${n}, 52px)`;
+  rowLabels.style.gridTemplateRows = `repeat(${n}, 52px)`;
+  colLabels.innerHTML = "";
+  rowLabels.innerHTML = "";
+  for (let c = 0; c < n; c++) {
+    const d = document.createElement('div');
+    d.textContent = c + 1;
+    colLabels.appendChild(d);
+  }
+  for (let r = 0; r < n; r++) {
+    const d = document.createElement('div');
+    d.textContent = r + 1;
+    rowLabels.appendChild(d);
+  }
+}
+
+function renderBoard() {
+  boardEl.style.gridTemplateColumns = `repeat(${n}, 52px)`;
+  boardEl.innerHTML = "";
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const cell = document.createElement('div');
+      cell.className = "cell";
+      cell.style.background = REGION_COLORS[regionGrid[r][c] % REGION_COLORS.length];
+      const state = cellState[r][c];
+      if (state === 1) {
+        cell.innerHTML = '<span class="mark-x">✕</span>';
+      } else if (state === 2) {
+        cell.textContent = "🐱";
+      }
+      if (hintCell && hintCell[0] === r && hintCell[1] === c) {
+        cell.classList.add('hint-glow');
+      }
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.addEventListener('click', () => handleCellClick(r, c, cell));
+      cell.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        handleCellRightClick(r, c);
+      });
+      boardEl.appendChild(cell);
+    }
+  }
+}
+
+const REASON_TEXT = {
+  row: "Another cat is already in that row",
+  column: "Another cat is already in that column",
+  color: "Another cat is already in that colored region",
+  touching: "That cell touches another cat (even diagonally counts)",
+};
+
+function handleCellClick(r, c, cellEl) {
+  if (gameOver || won) return;
+  if (hintCell) { hintCell = null; }
+
+  const state = cellState[r][c];
+  if (state === 0) {
+    cellState[r][c] = 1;
+    renderBoard();
+  } else if (state === 1) {
+    const result = checkCatPlacement(r, c);
+    if (result.valid) {
+      cellState[r][c] = 2;
+      renderBoard();
+      if (checkWin()) {
+        won = true;
+        statusEl.textContent = "You solved it! 🐾";
+        statusEl.className = "status-line win";
+        winOverlay.classList.add('show');
+      }
+    } else {
+      lives--;
+      renderLives();
+
+      cellEl.textContent = "🐱";
+      cellEl.classList.add('shake');
+
+      const [cr, cc] = result.conflictCell;
+      const conflictEl = document.querySelector(`.cell[data-r='${cr}'][data-c='${cc}']`);
+      if (conflictEl) conflictEl.classList.add('shake');
+
+      statusEl.textContent = `Blocked: ${REASON_TEXT[result.reason]}.`;
+      statusEl.className = "status-line lose";
+
+      setTimeout(() => {
+        cellState[r][c] = 0;
+        renderBoard();
+        if (lives <= 0) {
+          gameOver = true;
+          statusEl.textContent = "Out of lives — tap Reset to try again.";
+          statusEl.className = "status-line lose";
+        } else {
+          setTimeout(() => {
+            if (!gameOver) { statusEl.textContent = ""; statusEl.className = "status-line"; }
+          }, 1200);
+        }
+      }, 400);
+    }
+  } else if (state === 2) {
+    cellState[r][c] = 0;
+    renderBoard();
+  }
+}
+
+function handleCellRightClick(r, c) {
+  if (gameOver || won) return;
+  if (cellState[r][c] === 0) return;
+  if (hintCell) { hintCell = null; }
+  cellState[r][c] = 0;
+  renderBoard();
+}
+
+function showHint() {
+  if (gameOver || won || !solutionCells) return;
+  const unsolved = solutionCells.filter(([r, c]) => cellState[r][c] !== 2);
+  if (unsolved.length === 0) return;
+  const [r, c] = unsolved[randInt(unsolved.length)];
+  hintCell = [r, c];
+  renderBoard();
+  statusEl.textContent = "Hint: check the glowing cell.";
+  statusEl.className = "status-line";
+}
+
+document.getElementById('sizeSelect').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-size]');
+  if (!btn) return;
+  document.querySelectorAll('#sizeSelect button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  n = parseInt(btn.dataset.size, 10);
+  buildPuzzle();
+});
+
+document.getElementById('diffSelect').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-diff]');
+  if (!btn) return;
+  document.querySelectorAll('#diffSelect button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  difficulty = btn.dataset.diff;
+  buildPuzzle();
+});
+
+livesEl.addEventListener('click', toggleLivesIcon);
+
+newPuzzleBtn.addEventListener('click', () => buildPuzzle());
+document.getElementById('resetBtn').addEventListener('click', resetBoard);
+document.getElementById('hintBtn').addEventListener('click', showHint);
+
+buildPuzzle();
+</script>
+
+</body>
+</html>
